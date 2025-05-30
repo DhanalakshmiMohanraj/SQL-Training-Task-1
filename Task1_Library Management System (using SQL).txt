@@ -1,5 +1,13 @@
+-- Create database
+CREATE DATABASE IF NOT EXISTS library_management;
+USE library_management;
 
---Books table
+-- Drop existing tables
+DROP TABLE IF EXISTS BorrowingRecords;
+DROP TABLE IF EXISTS Members;
+DROP TABLE IF EXISTS Books;
+
+-- Books table
 CREATE TABLE Books (
     BOOK_ID INT PRIMARY KEY,
     TITLE VARCHAR(255) NOT NULL,
@@ -9,7 +17,7 @@ CREATE TABLE Books (
     AVAILABLE_COPIES INT DEFAULT 0
 );
 
---Members table
+-- Members table
 CREATE TABLE Members (
     MEMBER_ID INT PRIMARY KEY,
     NAME VARCHAR(255) NOT NULL,
@@ -19,7 +27,7 @@ CREATE TABLE Members (
     MEMBERSHIP_DATE DATE
 );
 
---BorrowingRecords table
+-- BorrowingRecords table
 CREATE TABLE BorrowingRecords (
     BORROW_ID INT PRIMARY KEY,
     MEMBER_ID INT,
@@ -29,7 +37,6 @@ CREATE TABLE BorrowingRecords (
     FOREIGN KEY (MEMBER_ID) REFERENCES Members(MEMBER_ID),
     FOREIGN KEY (BOOK_ID) REFERENCES Books(BOOK_ID)
 );
-
 
 INSERT INTO Books (BOOK_ID, TITLE, AUTHOR, GENRE, YEAR_PUBLISHED, AVAILABLE_COPIES) VALUES
 (1, 'The Great Gatsby', 'F. Scott Fitzgerald', 'Classic', 1925, 30),
@@ -43,7 +50,8 @@ INSERT INTO Members (MEMBER_ID, NAME, EMAIL, PHONE_NO, ADDRESS, MEMBERSHIP_DATE)
 (2, 'Emma Wilson', 'emma.w@email.com', '555-0102', '456 Oak Ave', '2023-02-20'),
 (3, 'Michael Brown', 'michael.b@email.com', '555-0103', '789 Pine Rd', '2023-03-10'),
 (4, 'Sarah Johnson', 'sarah.j@email.com', '555-0104', '321 Elm St', '2023-04-05'),
-(5, 'David Lee', 'david.lee@email.com', '555-0105', '654 Maple Dr', '2023-05-12');
+(5, 'David Lee', 'david.lee@email.com', '555-0105', '654 Maple Dr', '2023-05-12'),
+(6, 'Alice Cooper', 'alice.c@email.com', '555-0106', '789 New St', '2024-01-15');
 
 INSERT INTO BorrowingRecords (BORROW_ID, MEMBER_ID, BOOK_ID, BORROW_DATE, RETURN_DATE) VALUES
 (1, 1, 3, '2024-01-15', '2024-02-15'),
@@ -52,68 +60,71 @@ INSERT INTO BorrowingRecords (BORROW_ID, MEMBER_ID, BOOK_ID, BORROW_DATE, RETURN
 (4, 4, 2, '2024-03-01', '2024-04-01'),
 (5, 5, 2, '2024-03-15', NULL);
 
-
-SELECT b.TITLE, b.AUTHOR, br.BORROW_DATE
+(SELECT '1. Currently Borrowed Books' as Category, 
+    CONCAT(b.TITLE, ' by ', b.AUTHOR) as Details
 FROM Books b
 JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
-WHERE br.MEMBER_ID = 1 AND br.RETURN_DATE IS NULL;
+WHERE br.RETURN_DATE IS NULL)
 
-SELECT m.NAME, m.EMAIL, b.TITLE, br.BORROW_DATE,
-    DATEDIFF(CURRENT_DATE, br.BORROW_DATE) as DAYS_OVERDUE
+UNION ALL
+
+(SELECT '2. Overdue Books',
+    CONCAT(m.NAME, ' - ', b.TITLE)
 FROM Members m
 JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
 JOIN Books b ON br.BOOK_ID = b.BOOK_ID
 WHERE br.RETURN_DATE IS NULL 
-AND DATEDIFF(CURRENT_DATE, br.BORROW_DATE) > 30;
+AND DATEDIFF(CURDATE(), br.BORROW_DATE) > 30)
 
-SELECT GENRE, 
-    COUNT(*) as TOTAL_BOOKS,
-    SUM(AVAILABLE_COPIES) as TOTAL_AVAILABLE_COPIES
-FROM Books
-GROUP BY GENRE
-ORDER BY GENRE;
+UNION ALL
 
-SELECT b.TITLE, b.AUTHOR, COUNT(*) as TIMES_BORROWED
+(SELECT '3. Genre Statistics',
+    CONCAT(GENRE, ': ', AVAILABLE_COPIES, ' copies')
+FROM Books)
+
+UNION ALL
+
+(SELECT '4. Most Borrowed Books',
+    CONCAT(b.TITLE, ' (Borrowed ', COUNT(*), ' times)')
 FROM Books b
 JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
-GROUP BY b.BOOK_ID, b.TITLE, b.AUTHOR
-HAVING COUNT(*) = (
-    SELECT COUNT(*)
+GROUP BY b.BOOK_ID, b.TITLE
+HAVING COUNT(*) > 1)
+
+UNION ALL
+
+(SELECT '5. Active Members',
+    CONCAT(m.NAME, ' (', COUNT(*), ' books)')
+FROM Members m
+JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
+GROUP BY m.MEMBER_ID, m.NAME
+HAVING COUNT(*) > 1)
+
+UNION ALL
+
+(SELECT '6. Monthly Statistics',
+    CONCAT(yr_mon, ': ', num_books, ' books') as Details
+FROM (
+    SELECT DATE_FORMAT(BORROW_DATE, '%Y-%m') as yr_mon, COUNT(*) as num_books
     FROM BorrowingRecords
-    GROUP BY BOOK_ID
-    ORDER BY COUNT(*) DESC
-    LIMIT 1
-);
+    GROUP BY DATE_FORMAT(BORROW_DATE, '%Y-%m')
+) monthly_stats)
 
-SELECT m.NAME, COUNT(DISTINCT b.GENRE) as DIFFERENT_GENRES
-FROM Members m
-JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
-JOIN Books b ON br.BOOK_ID = b.BOOK_ID
-GROUP BY m.MEMBER_ID, m.NAME
-HAVING COUNT(DISTINCT b.GENRE) >= 2;
+UNION ALL
 
-SELECT 
-    YEAR(BORROW_DATE) as YEAR,
-    MONTH(BORROW_DATE) as MONTH,
-    COUNT(*) as TOTAL_BORROWED
-FROM BorrowingRecords
-GROUP BY YEAR(BORROW_DATE), MONTH(BORROW_DATE)
-ORDER BY YEAR, MONTH;
-
-SELECT m.NAME, COUNT(*) as BOOKS_BORROWED
-FROM Members m
-JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
-GROUP BY m.MEMBER_ID, m.NAME
-ORDER BY BOOKS_BORROWED DESC
-LIMIT 3;
-
-SELECT b.AUTHOR, COUNT(*) as TOTAL_BORROWS
+(SELECT '7. Frequently Borrowed Authors',
+    CONCAT(b.AUTHOR, ' (', COUNT(*), ' borrows)')
 FROM Books b
 JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
 GROUP BY b.AUTHOR
-HAVING COUNT(*) >= 2;
+HAVING COUNT(*) >= 2)
 
-SELECT m.NAME, m.EMAIL, m.MEMBERSHIP_DATE
+UNION ALL
+
+(SELECT '8. Non-Borrowing Members',
+    CONCAT(m.NAME, ' (joined: ', DATE_FORMAT(m.MEMBERSHIP_DATE, '%Y-%m-%d'), ')')
 FROM Members m
 LEFT JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
-WHERE br.BORROW_ID IS NULL;
+WHERE br.BORROW_ID IS NULL)
+
+ORDER BY Category;
