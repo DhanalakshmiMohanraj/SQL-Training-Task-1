@@ -1,0 +1,119 @@
+
+--Books table
+CREATE TABLE Books (
+    BOOK_ID INT PRIMARY KEY,
+    TITLE VARCHAR(255) NOT NULL,
+    AUTHOR VARCHAR(255),
+    GENRE VARCHAR(100),
+    YEAR_PUBLISHED INT,
+    AVAILABLE_COPIES INT DEFAULT 0
+);
+
+--Members table
+CREATE TABLE Members (
+    MEMBER_ID INT PRIMARY KEY,
+    NAME VARCHAR(255) NOT NULL,
+    EMAIL VARCHAR(255) UNIQUE,
+    PHONE_NO VARCHAR(15),
+    ADDRESS TEXT,
+    MEMBERSHIP_DATE DATE
+);
+
+--BorrowingRecords table
+CREATE TABLE BorrowingRecords (
+    BORROW_ID INT PRIMARY KEY,
+    MEMBER_ID INT,
+    BOOK_ID INT,
+    BORROW_DATE DATE,
+    RETURN_DATE DATE,
+    FOREIGN KEY (MEMBER_ID) REFERENCES Members(MEMBER_ID),
+    FOREIGN KEY (BOOK_ID) REFERENCES Books(BOOK_ID)
+);
+
+
+INSERT INTO Books (BOOK_ID, TITLE, AUTHOR, GENRE, YEAR_PUBLISHED, AVAILABLE_COPIES) VALUES
+(1, 'The Great Gatsby', 'F. Scott Fitzgerald', 'Classic', 1925, 30),
+(2, 'To Kill a Mockingbird', 'Harper Lee', 'Fiction', 1960, 20),
+(3, 'Harry Potter and the Sorcerer''s Stone', 'J.K. Rowling', 'Fantasy', 1997, 50),
+(4, 'The Da Vinci Code', 'Dan Brown', 'Mystery', 2003, 40),
+(5, 'Pride and Prejudice', 'Jane Austen', 'Romance', 1813, 30);
+
+INSERT INTO Members (MEMBER_ID, NAME, EMAIL, PHONE_NO, ADDRESS, MEMBERSHIP_DATE) VALUES
+(1, 'John Smith', 'john.smith@email.com', '555-0101', '123 Main St', '2023-01-15'),
+(2, 'Emma Wilson', 'emma.w@email.com', '555-0102', '456 Oak Ave', '2023-02-20'),
+(3, 'Michael Brown', 'michael.b@email.com', '555-0103', '789 Pine Rd', '2023-03-10'),
+(4, 'Sarah Johnson', 'sarah.j@email.com', '555-0104', '321 Elm St', '2023-04-05'),
+(5, 'David Lee', 'david.lee@email.com', '555-0105', '654 Maple Dr', '2023-05-12');
+
+INSERT INTO BorrowingRecords (BORROW_ID, MEMBER_ID, BOOK_ID, BORROW_DATE, RETURN_DATE) VALUES
+(1, 1, 3, '2024-01-15', '2024-02-15'),
+(2, 2, 5, '2024-02-01', NULL),
+(3, 3, 1, '2024-02-15', '2024-03-15'),
+(4, 4, 2, '2024-03-01', '2024-04-01'),
+(5, 5, 2, '2024-03-15', NULL);
+
+
+SELECT b.TITLE, b.AUTHOR, br.BORROW_DATE
+FROM Books b
+JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
+WHERE br.MEMBER_ID = 1 AND br.RETURN_DATE IS NULL;
+
+SELECT m.NAME, m.EMAIL, b.TITLE, br.BORROW_DATE,
+    DATEDIFF(CURRENT_DATE, br.BORROW_DATE) as DAYS_OVERDUE
+FROM Members m
+JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
+JOIN Books b ON br.BOOK_ID = b.BOOK_ID
+WHERE br.RETURN_DATE IS NULL 
+AND DATEDIFF(CURRENT_DATE, br.BORROW_DATE) > 30;
+
+SELECT GENRE, 
+    COUNT(*) as TOTAL_BOOKS,
+    SUM(AVAILABLE_COPIES) as TOTAL_AVAILABLE_COPIES
+FROM Books
+GROUP BY GENRE
+ORDER BY GENRE;
+
+SELECT b.TITLE, b.AUTHOR, COUNT(*) as TIMES_BORROWED
+FROM Books b
+JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
+GROUP BY b.BOOK_ID, b.TITLE, b.AUTHOR
+HAVING COUNT(*) = (
+    SELECT COUNT(*)
+    FROM BorrowingRecords
+    GROUP BY BOOK_ID
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+);
+
+SELECT m.NAME, COUNT(DISTINCT b.GENRE) as DIFFERENT_GENRES
+FROM Members m
+JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
+JOIN Books b ON br.BOOK_ID = b.BOOK_ID
+GROUP BY m.MEMBER_ID, m.NAME
+HAVING COUNT(DISTINCT b.GENRE) >= 2;
+
+SELECT 
+    YEAR(BORROW_DATE) as YEAR,
+    MONTH(BORROW_DATE) as MONTH,
+    COUNT(*) as TOTAL_BORROWED
+FROM BorrowingRecords
+GROUP BY YEAR(BORROW_DATE), MONTH(BORROW_DATE)
+ORDER BY YEAR, MONTH;
+
+SELECT m.NAME, COUNT(*) as BOOKS_BORROWED
+FROM Members m
+JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
+GROUP BY m.MEMBER_ID, m.NAME
+ORDER BY BOOKS_BORROWED DESC
+LIMIT 3;
+
+SELECT b.AUTHOR, COUNT(*) as TOTAL_BORROWS
+FROM Books b
+JOIN BorrowingRecords br ON b.BOOK_ID = br.BOOK_ID
+GROUP BY b.AUTHOR
+HAVING COUNT(*) >= 2;
+
+SELECT m.NAME, m.EMAIL, m.MEMBERSHIP_DATE
+FROM Members m
+LEFT JOIN BorrowingRecords br ON m.MEMBER_ID = br.MEMBER_ID
+WHERE br.BORROW_ID IS NULL;
